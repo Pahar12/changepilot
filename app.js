@@ -10,7 +10,14 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: env.corsOrigin
+    origin(origin, callback) {
+      if (!origin || env.corsOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    }
   })
 );
 app.use(express.json());
