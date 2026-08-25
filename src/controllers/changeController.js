@@ -37,4 +37,21 @@ async function listChanges(req, res) {
   res.status(200).json(result);
 }
 
-module.exports = { createChange, listChanges };
+/**
+ * GET /api/v1/changes/:id
+ * Returns a single ChangeRequest by ID.
+ * Responds 200 on success, 404 when the record does not exist.
+ */
+async function getChangeById(req, res) {
+  try {
+    const record = await changeService.getChangeById(req.params.id);
+    res.status(200).json({ data: record });
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ status: 'fail', message: err.message });
+    }
+    throw err; // unexpected error — let the global error handler deal with it
+  }
+}
+
+module.exports = { createChange, listChanges, getChangeById };

@@ -66,4 +66,34 @@ function validateQuery(validatorFn) {
   };
 }
 
-module.exports = { validateBody, validateQuery };
+/**
+ * validateParam — wraps a pure validator function in Express middleware for
+ * a named route parameter.
+ *
+ * The validator receives the raw string value of req.params[paramName] and
+ * returns { errors, data }.
+ * On failure → 400 JSON with the errors array.
+ * On success → writes the validated value back to req.params[paramName] and
+ * calls next().
+ *
+ * Unlike req.query, req.params is a plain mutable object in Express 5, so
+ * direct assignment is safe.
+ *
+ * @param {string}   paramName   - the route param key (e.g. 'id')
+ * @param {Function} validatorFn (value) => { errors: Array, data: string|null }
+ * @returns {Function} Express middleware (req, res, next)
+ */
+function validateParam(paramName, validatorFn) {
+  return function (req, res, next) {
+    const { errors, data } = validatorFn(req.params[paramName]);
+
+    if (errors.length > 0) {
+      return res.status(400).json({ status: 'fail', errors });
+    }
+
+    req.params[paramName] = data;
+    next();
+  };
+}
+
+module.exports = { validateBody, validateQuery, validateParam };

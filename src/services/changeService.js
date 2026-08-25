@@ -76,4 +76,28 @@ async function listChanges({ filter, page, limit }) {
   };
 }
 
-module.exports = { createChange, listChanges };
+/**
+ * Retrieve a single ChangeRequest by its UUID.
+ *
+ * Returns the record when found.
+ * Throws a plain Error with statusCode 404 when no record matches —
+ * the global error handler in app.js does NOT recognise statusCode, so the
+ * controller must handle this case explicitly and send its own 404 response.
+ *
+ * @param {string} id - UUID v4
+ * @returns {Promise<Object>} the ChangeRequest record
+ * @throws {Error} with statusCode 404 when not found
+ */
+async function getChangeById(id) {
+  const record = await prisma.changeRequest.findUnique({ where: { id } });
+
+  if (!record) {
+    const err = new Error('Change request not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return record;
+}
+
+module.exports = { createChange, listChanges, getChangeById };

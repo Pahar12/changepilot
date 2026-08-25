@@ -175,4 +175,29 @@ function validateListChanges(query) {
   return { errors: [], data: { filter, page, limit } };
 }
 
-module.exports = { validateCreateChange, validateListChanges };
+// UUID v4 format: xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Validate the :id route parameter for GET /api/v1/changes/:id.
+ *
+ * Rejects values that are not UUID v4 so obviously invalid IDs never reach
+ * the database — Prisma would throw a validation error on a malformed UUID
+ * anyway, but catching it here keeps the error shape consistent with the
+ * rest of the API (400 + errors array) and avoids a round-trip to the DB.
+ *
+ * @param {string} id - raw req.params.id
+ * @returns {{ errors: Array<{field:string, message:string}>, data: string|null }}
+ *   data — the validated id string when valid
+ */
+function validateChangeId(id) {
+  if (!id || !UUID_V4_RE.test(id)) {
+    return {
+      errors: [{ field: 'id', message: 'id must be a valid UUID' }],
+      data:   null
+    };
+  }
+  return { errors: [], data: id };
+}
+
+module.exports = { validateCreateChange, validateListChanges, validateChangeId };
