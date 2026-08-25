@@ -25,4 +25,16 @@ async function createChange(req, res) {
   res.status(201).json({ status: 'success', data: record });
 }
 
-module.exports = { createChange };
+/**
+ * GET /api/v1/changes
+ * Returns a paginated, filtered list of ChangeRequests.
+ * Query params are pre-validated and parsed by validateQuery middleware.
+ */
+async function listChanges(req, res) {
+  // Read from req.parsedQuery — set by validateQuery middleware with typed values.
+  const { filter, page, limit } = req.parsedQuery;
+  const result = await changeService.listChanges({ filter, page, limit });
+  res.status(200).json(result);
+}
+
+module.exports = { createChange, listChanges };

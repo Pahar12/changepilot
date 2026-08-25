@@ -9,10 +9,13 @@
 
 const express = require('express');
 const controller = require('../controllers/changeController');
-const { validateBody } = require('../middleware');
-const { validateCreateChange } = require('../validators/changeValidator');
+const { validateBody, validateQuery } = require('../middleware');
+const { validateCreateChange, validateListChanges } = require('../validators/changeValidator');
 
 const router = express.Router();
+
+// GET  /api/v1/changes
+router.get('/', validateQuery(validateListChanges), controller.listChanges);
 
 // POST /api/v1/changes
 router.post('/', validateBody(validateCreateChange), controller.createChange);

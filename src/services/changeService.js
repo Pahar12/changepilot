@@ -40,4 +40,40 @@ async function createChange(fields) {
   return record;
 }
 
-module.exports = { createChange };
+/**
+ * List ChangeRequests with optional filtering and offset pagination.
+ *
+ * Runs findMany and count in parallel — both use the same where filter so
+ * only one set of query parameters is constructed.
+ *
+ * @param {Object} options
+ * @param {Object}  options.filter  - Prisma where clause (may be {})
+ * @param {number}  options.page    - 1-based page number
+ * @param {number}  options.limit   - records per page
+ * @returns {Promise<{ data: Object[], pagination: Object }>}
+ */
+async function listChanges({ filter, page, limit }) {
+  const skip = (page - 1) * limit;
+
+  const [records, total] = await Promise.all([
+    prisma.changeRequest.findMany({
+      where:   filter,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take:    limit
+    }),
+    prisma.changeRequest.count({ where: filter })
+  ]);
+
+  return {
+    data: records,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 0
+    }
+  };
+}
+
+module.exports = { createChange, listChanges };
