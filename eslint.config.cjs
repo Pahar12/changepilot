@@ -8,8 +8,16 @@ module.exports = [
       ecmaVersion: 'latest',
       sourceType: 'commonjs',
       globals: {
-        console: 'readonly',
-        process: 'readonly'
+        // Node built-ins not covered by sourceType:'commonjs'
+        console:      'readonly',
+        process:      'readonly',
+        Buffer:       'readonly',
+        __dirname:    'readonly',
+        __filename:   'readonly',
+        setTimeout:   'readonly',
+        clearTimeout: 'readonly'
+        // module / require / exports are provided by sourceType:'commonjs'
+        // setInterval / clearInterval / URL are not used in this project
       }
     },
     rules: {
