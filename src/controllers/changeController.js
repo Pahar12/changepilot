@@ -54,4 +54,115 @@ async function getChangeById(req, res) {
   }
 }
 
-module.exports = { createChange, listChanges, getChangeById };
+/**
+ * POST /api/v1/changes/:id/submit
+ * Transitions a DRAFT ChangeRequest to UNDER_REVIEW.
+ * Responds 200 on success.
+ * Handles 400 (blank description), 404 (not found), 409 (wrong status).
+ */
+async function submitChange(req, res) {
+  try {
+    const record = await changeService.submitChange(req.params.id);
+    res.status(200).json({ data: record });
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ status: 'fail', message: err.message });
+    }
+    if (err.statusCode === 409) {
+      return res.status(409).json({ status: 'fail', message: err.message });
+    }
+    if (err.statusCode === 400) {
+      return res.status(400).json({
+        status: 'fail',
+        errors: [{ field: 'description', message: err.message }]
+      });
+    }
+    throw err; // unexpected — global error handler
+  }
+}
+
+/**
+ * POST /api/v1/changes/:id/approve
+ * Transitions an UNDER_REVIEW ChangeRequest to APPROVED.
+ * Responds 200 on success.
+ * Handles 404 (not found), 409 (wrong status).
+ */
+async function approveChange(req, res) {
+  try {
+    const record = await changeService.approveChange(req.params.id);
+    res.status(200).json({ data: record });
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ status: 'fail', message: err.message });
+    }
+    if (err.statusCode === 409) {
+      return res.status(409).json({ status: 'fail', message: err.message });
+    }
+    throw err;
+  }
+}
+
+/**
+ * POST /api/v1/changes/:id/reject
+ * Transitions an UNDER_REVIEW ChangeRequest to REJECTED.
+ * Responds 200 on success.
+ * Handles 404 (not found), 409 (wrong status).
+ */
+async function rejectChange(req, res) {
+  try {
+    const record = await changeService.rejectChange(req.params.id);
+    res.status(200).json({ data: record });
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ status: 'fail', message: err.message });
+    }
+    if (err.statusCode === 409) {
+      return res.status(409).json({ status: 'fail', message: err.message });
+    }
+    throw err;
+  }
+}
+
+/**
+ * POST /api/v1/changes/:id/close
+ * Transitions an APPROVED or REJECTED ChangeRequest to CLOSED.
+ * Responds 200 on success.
+ * Handles 404 (not found), 409 (wrong status).
+ */
+async function closeChange(req, res) {
+  try {
+    const record = await changeService.closeChange(req.params.id);
+    res.status(200).json({ data: record });
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ status: 'fail', message: err.message });
+    }
+    if (err.statusCode === 409) {
+      return res.status(409).json({ status: 'fail', message: err.message });
+    }
+    throw err;
+  }
+}
+
+/**
+ * PATCH /api/v1/changes/:id
+ * Applies a partial update to a DRAFT ChangeRequest.
+ * Responds 200 on success.
+ * Handles 404 (not found), 409 (not DRAFT).
+ */
+async function updateChange(req, res) {
+  try {
+    const record = await changeService.updateChange(req.params.id, req.body);
+    res.status(200).json({ data: record });
+  } catch (err) {
+    if (err.statusCode === 404) {
+      return res.status(404).json({ status: 'fail', message: err.message });
+    }
+    if (err.statusCode === 409) {
+      return res.status(409).json({ status: 'fail', message: err.message });
+    }
+    throw err;
+  }
+}
+
+module.exports = { createChange, listChanges, getChangeById, submitChange, approveChange, rejectChange, closeChange, updateChange };

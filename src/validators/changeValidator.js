@@ -179,7 +179,7 @@ function validateListChanges(query) {
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
- * Validate the :id route parameter for GET /api/v1/changes/:id.
+ * Validate the :id route parameter for all routes that accept a ChangeRequest id.
  *
  * Rejects values that are not UUID v4 so obviously invalid IDs never reach
  * the database — Prisma would throw a validation error on a malformed UUID
@@ -200,4 +200,211 @@ function validateChangeId(id) {
   return { errors: [], data: id };
 }
 
-module.exports = { validateCreateChange, validateListChanges, validateChangeId };
+/**
+ * Validate the body of POST /api/v1/changes/:id/submit.
+ *
+ * This is a no-body action endpoint — clients must not supply any fields.
+ * The body is expected to be absent, null, or an empty object.
+ * Reject any supplied fields to prevent clients from attempting to pass
+ * data (e.g. a status field) through the submit action.
+ *
+ * Description readiness is enforced in the service layer against the stored
+ * record — it is not a client-supplied field for this endpoint.
+ *
+ * @param {Object} body - raw req.body
+ * @returns {{ errors: Array<{field:string, message:string}>, data: Object|null }}
+ */
+function validateSubmitChange(body) {
+  const raw = body || {};
+  const keys = Object.keys(raw);
+
+  if (keys.length > 0) {
+    return {
+      errors: keys.map((key) => ({
+        field: key,
+        message: `Field "${key}" is not accepted on the submit action`
+      })),
+      data: null
+    };
+  }
+
+  return { errors: [], data: {} };
+}
+
+/**
+ * Validate the body of POST /api/v1/changes/:id/approve.
+ *
+ * No-body action — any client-supplied field is rejected.
+ *
+ * @param {Object} body - raw req.body
+ * @returns {{ errors: Array<{field:string, message:string}>, data: Object|null }}
+ */
+function validateApproveChange(body) {
+  const raw = body || {};
+  const keys = Object.keys(raw);
+
+  if (keys.length > 0) {
+    return {
+      errors: keys.map((key) => ({
+        field: key,
+        message: `Field "${key}" is not accepted on the approve action`
+      })),
+      data: null
+    };
+  }
+
+  return { errors: [], data: {} };
+}
+
+/**
+ * Validate the body of POST /api/v1/changes/:id/reject.
+ *
+ * No-body action — any client-supplied field is rejected.
+ *
+ * @param {Object} body - raw req.body
+ * @returns {{ errors: Array<{field:string, message:string}>, data: Object|null }}
+ */
+function validateRejectChange(body) {
+  const raw = body || {};
+  const keys = Object.keys(raw);
+
+  if (keys.length > 0) {
+    return {
+      errors: keys.map((key) => ({
+        field: key,
+        message: `Field "${key}" is not accepted on the reject action`
+      })),
+      data: null
+    };
+  }
+
+  return { errors: [], data: {} };
+}
+
+/**
+ * Validate the body of POST /api/v1/changes/:id/close.
+ *
+ * No-body action — any client-supplied field is rejected.
+ *
+ * @param {Object} body - raw req.body
+ * @returns {{ errors: Array<{field:string, message:string}>, data: Object|null }}
+ */
+function validateCloseChange(body) {
+  const raw = body || {};
+  const keys = Object.keys(raw);
+
+  if (keys.length > 0) {
+    return {
+      errors: keys.map((key) => ({
+        field: key,
+        message: `Field "${key}" is not accepted on the close action`
+      })),
+      data: null
+    };
+  }
+
+  return { errors: [], data: {} };
+}
+
+/**
+ * Validate the body of PATCH /api/v1/changes/:id.
+ *
+ * Only title, description and riskLevel may be updated.
+ * At least one field must be supplied.
+ */
+function validateUpdateChange(body) {
+  const errors = [];
+  const raw = body || {};
+
+  const allowedFields = ['title', 'description', 'riskLevel'];
+
+  // Reject unknown/server-controlled fields.
+  for (const key of Object.keys(raw)) {
+    if (!allowedFields.includes(key)) {
+      errors.push({
+        field: key,
+        message: `Field "${key}" is not permitted`
+      });
+    }
+  }
+
+  // PATCH requires at least one field.
+  if (Object.keys(raw).length === 0) {
+    errors.push({
+      field: 'body',
+      message: 'At least one field must be provided'
+    });
+  }
+
+  let title;
+  if (raw.title !== undefined) {
+    if (typeof raw.title !== 'string') {
+      errors.push({
+        field: 'title',
+        message: 'title must be a string'
+      });
+    } else {
+      title = raw.title.trim();
+
+      if (title.length === 0) {
+        errors.push({
+          field: 'title',
+          message: 'title must not be empty'
+        });
+      } else if (title.length > 100) {
+        errors.push({
+          field: 'title',
+          message: 'title must not exceed 100 characters'
+        });
+      }
+    }
+  }
+
+  let description;
+  if (raw.description !== undefined) {
+    if (typeof raw.description !== 'string') {
+      errors.push({
+        field: 'description',
+        message: 'description must be a string'
+      });
+    } else {
+      description = raw.description.trim();
+    }
+  }
+
+  let riskLevel;
+  if (raw.riskLevel !== undefined) {
+    if (!VALID_RISK_LEVELS.includes(raw.riskLevel)) {
+      errors.push({
+        field: 'riskLevel',
+        message: `riskLevel must be one of: ${VALID_RISK_LEVELS.join(', ')}`
+      });
+    } else {
+      riskLevel = raw.riskLevel;
+    }
+  }
+
+  if (errors.length > 0) {
+    return { errors, data: null };
+  }
+
+  return {
+    errors: [],
+    data: {
+      ...(title !== undefined && { title }),
+      ...(description !== undefined && { description }),
+      ...(riskLevel !== undefined && { riskLevel })
+    }
+  };
+}
+
+module.exports = {
+  validateCreateChange,
+  validateListChanges,
+  validateChangeId,
+  validateSubmitChange,
+  validateApproveChange,
+  validateRejectChange,
+  validateCloseChange,
+  validateUpdateChange
+};
