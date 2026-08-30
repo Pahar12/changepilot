@@ -51,28 +51,30 @@ enum RiskLevel {
 /// Represents a system user who can create, review, or administer change requests.
 model User {
   /// UUID v4 primary key.
-  id                    String          @id @default(uuid())
+  id String @id @default(uuid())
 
   /// Full name of the user.
-  name                  String
+  name String
 
   /// Unique email address used for identity and login.
-  email                 String          @unique
+  email String @unique
 
   /// Cryptographic hash of the user's password. Plaintext passwords are never stored.
-  passwordHash          String
+  passwordHash String
 
   /// User's system role. Defaults to REQUESTER.
-  role                  UserRole        @default(REQUESTER)
+  role UserRole @default(REQUESTER)
 
   /// Record creation timestamp.
-  createdAt             DateTime        @default(now())
+  createdAt DateTime @default(now())
 
   /// Automatically updated on every UPDATE/UPSERT.
-  updatedAt             DateTime        @updatedAt
+  updatedAt DateTime @updatedAt
 
   /// Change requests created by this user.
   changeRequestsCreated ChangeRequest[]
+  evidenceSubmitted     Evidence[]
+  auditEvents           AuditEvent[]
 
   @@map("users")
 }
@@ -81,10 +83,10 @@ model User {
 /// go through a review and approval lifecycle before it can be implemented.
 model ChangeRequest {
   /// UUID v4 — safe to expose in URLs; no row-count leakage.
-  id          String               @id @default(uuid())
+  id String @id @default(uuid())
 
   /// Short human-readable label for the request (1–100 chars enforced in middleware).
-  title       String
+  title String
 
   /// Full description of the change, its motivation, and impact.
   /// Nullable at creation time; required before submitting for review (enforced in service layer).
@@ -92,23 +94,24 @@ model ChangeRequest {
 
   /// Current lifecycle state. Defaults to DRAFT — the author must explicitly
   /// submit the request to move it into UNDER_REVIEW.
-  status      ChangeRequestStatus  @default(DRAFT)
+  status ChangeRequestStatus @default(DRAFT)
 
   /// Risk assessment for this change. Defaults to LOW so the author must
   /// actively acknowledge higher risk rather than having it pre-filled.
-  riskLevel   RiskLevel            @default(LOW)
+  riskLevel RiskLevel @default(LOW)
 
   /// Foreign key referencing the creator User. Nullable for backward compatibility with existing records.
   createdById String?
 
   /// Relation to the user who created this change request.
-  createdBy   User?                @relation(fields: [createdById], references: [id])
-
+  createdBy   User?        @relation(fields: [createdById], references: [id])
+  evidence    Evidence[]
+  auditEvents AuditEvent[]
   /// Set by the database on INSERT; immune to client clock skew.
-  createdAt   DateTime             @default(now())
+  createdAt   DateTime     @default(now())
 
   /// Automatically updated by Prisma on every UPDATE/UPSERT.
-  updatedAt   DateTime             @updatedAt
+  updatedAt DateTime @updatedAt
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   // Each index targets a first-class query pattern on the dashboard:
@@ -120,8 +123,97 @@ model ChangeRequest {
   @@index([riskLevel])
   @@index([createdAt])
   @@index([createdById])
-
   // Map to snake_case table name — Prisma model names are PascalCase,
   // PostgreSQL table names are snake_case.
   @@map("change_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Evidence
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Evidence attached to a ChangeRequest to support review and approval.
+model Evidence {
+  /// UUID v4 primary key.
+  id String @id @default(uuid())
+
+  /// ChangeRequest this evidence belongs to.
+  changeRequestId String
+
+  /// User who submitted the evidence.
+  submittedById String
+
+  /// Evidence category.
+  type String
+
+  /// Human-readable evidence title.
+  title String
+
+  /// Optional explanatory notes.
+  description String?
+
+  /// URL or external reference associated with the evidence.
+  reference String
+
+  /// Optional structured metadata.
+  metadata Json?
+
+  /// Record creation timestamp.
+  createdAt DateTime @default(now())
+
+  /// Automatically updated on every UPDATE.
+  updatedAt DateTime @updatedAt
+
+  /// Parent ChangeRequest.
+  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  /// User who submitted this evidence.
+  submittedBy User @relation(fields: [submittedById], references: [id])
+
+  @@index([changeRequestId])
+  @@index([submittedById])
+  @@map("evidence")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit Events
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Immutable server-generated audit event.
+model AuditEvent {
+  /// UUID v4 primary key.
+  id String @id @default(uuid())
+
+  /// User responsible for the event. Nullable for future system events.
+  actorId String?
+
+  /// Action performed, e.g. CHANGE_CREATED, CHANGE_SUBMITTED.
+  action String
+
+  /// Entity type associated with this event.
+  entityType String
+
+  /// ID of the affected entity.
+  entityId String
+
+  /// ChangeRequest associated with the event when applicable.
+  changeRequestId String?
+
+  /// Structured event metadata.
+  metadata Json?
+
+  /// Event creation timestamp.
+  createdAt DateTime @default(now())
+
+  /// Actor responsible for the event.
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  /// Associated ChangeRequest.
+  changeRequest ChangeRequest? @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  @@index([changeRequestId])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_events")
 }
