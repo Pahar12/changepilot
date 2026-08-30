@@ -106,13 +106,17 @@ GitHub Actions runs:
 ## Current status
 
 ### Implemented:
+
 - Authentication endpoints with scrypt password hashing and HS256 JWTs
-- RBAC enforcement for REQUESTER, REVIEWER, and ADMIN roles
+- RBAC enforcement for REQUESTER, REVIEWER, and ADMIN
 - ChangeRequest CRUD and lifecycle APIs
 - PostgreSQL + Prisma persistence
 - ChangeRequest validation and state transitions
 - User model with role definitions
-- ChangeRequest ownership enforcement for requester-owned updates and submits
+- ChangeRequest ownership enforcement
+- Evidence tracking with CRUD APIs
+- Immutable audit trail for ChangeRequest and evidence actions
+- Role-based access control for evidence and audit history
 - Automated integration tests
 - GitHub Actions CI
 
@@ -120,6 +124,7 @@ GitHub Actions runs:
 - Evidence tracking
 
 ### Planned:
+
 - GitHub integration
 - AI and IBM Bob integration
 - Docker and deployment setup
