@@ -14,12 +14,14 @@ Client → Express API → PostgreSQL/Prisma
   - `ChangeRequest` lifecycle and risk models
   - User → ChangeRequest ownership relation via nullable `createdById` (backward compatible)
 - Health endpoint at `/api/health`
+- Authentication endpoints at `/api/v1/auth/register`, `/api/v1/auth/login`, and `/api/v1/auth/me`
+- Custom scrypt password hashing and HS256 JWT authentication
+- RBAC middleware enforcing REQUESTER / REVIEWER / ADMIN access rules
 - Change request endpoints under `/api/v1/changes`
+- Requester ownership enforced on create, update, and submit flows
 
 ## Planned future features (not implemented yet)
 
-- Authentication and authorization API flows (registration, login, JWT verification)
-- Role-based access control (RBAC) middleware
 - Evidence tracking
 - GitHub integration and webhooks
 - AI and IBM Bob integration

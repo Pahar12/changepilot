@@ -26,6 +26,9 @@ const app = require('../app');
 // Shared Prisma singleton — same instance the service uses.
 // Disconnected once in after() so only one pool is ever open.
 const prisma = require('../src/lib/prisma');
+const { signToken } = require('../src/lib/jwt');
+const { hashPassword } = require('../src/lib/crypto');
+const env = require('../src/config/env');
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
@@ -44,7 +47,8 @@ function post(server, path, payload) {
       method:   'POST',
       headers: {
         'Content-Type':   'application/json',
-        'Content-Length': Buffer.byteLength(data)
+        'Content-Length': Buffer.byteLength(data),
+        Authorization:    `Bearer ${requesterToken}`
       }
     };
 
@@ -105,10 +109,31 @@ function postRaw(server, path, rawBody) {
 // ── Server lifecycle ──────────────────────────────────────────────────────────
 
 let server;
+let requesterUser;
+let requesterToken;
 
 before(() => {
-  server = http.createServer(app);
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return prisma.user.deleteMany({}).then(async () => {
+    const passwordHash = await hashPassword('TestPassword123');
+
+    requesterUser = await prisma.user.create({
+      data: {
+        name: 'Requester One',
+        email: 'changes-post-requester@example.com',
+        passwordHash,
+        role: 'REQUESTER'
+      }
+    });
+
+    requesterToken = signToken(
+      { userId: requesterUser.id, email: requesterUser.email, role: requesterUser.role },
+      env.jwtSecret,
+      env.jwtExpiresIn
+    );
+
+    server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  });
 });
 
 after(async () => {
@@ -158,6 +183,7 @@ describe('POST /api/v1/changes', () => {
       assert.equal(r.description, 'Move from v2 to v3');
       assert.equal(r.status, 'DRAFT');
       assert.equal(r.riskLevel, 'HIGH');
+      assert.equal(r.createdById, requesterUser.id);
       assert.ok(r.createdAt);
       assert.ok(r.updatedAt);
     } finally {

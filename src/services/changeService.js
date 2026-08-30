@@ -20,20 +20,29 @@ const prisma = require('../lib/prisma');
  *   - status is always DRAFT — clients cannot influence the initial lifecycle state
  *   - riskLevel defaults to LOW when omitted — Prisma schema default covers this,
  *     but being explicit here makes the rule visible to future maintainers
+ *   - createdById is populated from the authenticated user context
  *
  * @param {Object} fields
  * @param {string}  fields.title
  * @param {string}  [fields.description]
- * @param {string}  [fields.riskLevel]  - LOW | MEDIUM | HIGH | CRITICAL
+ * @param {string}  [fields.riskLevel]   - LOW | MEDIUM | HIGH | CRITICAL
+ * @param {string}  createdById          - authenticated user UUID
  * @returns {Promise<Object>} the created ChangeRequest record
  */
-async function createChange(fields) {
+async function createChange(fields, createdById) {
+  if (typeof createdById !== 'string' || createdById.length === 0) {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
+
   const record = await prisma.changeRequest.create({
     data: {
       title:       fields.title,
       description: fields.description,      // undefined → Prisma omits field (nullable, stays null)
       riskLevel:   fields.riskLevel,        // undefined → Prisma uses schema default (LOW)
-      status:      'DRAFT'                  // always overridden — client cannot set this
+      status:      'DRAFT',                 // always overridden — client cannot set this
+      createdById                         // set from authenticated user
     }
   });
 
@@ -120,13 +129,21 @@ async function getChangeById(id) {
  *   The follow-up findUnique only runs in the count=0 path (failure path).
  *   On the success path (count=1) a single extra findUnique fetches the updated record.
  *
- * @param {string} id - UUID v4
+ * @param {string} id   - UUID v4
+ * @param {Object} [user] - authenticated user object { id, role }
  * @returns {Promise<Object>} the updated ChangeRequest record
  * @throws {Error} statusCode 404 — record not found
+ * @throws {Error} statusCode 403 — requester modifying someone else's request
  * @throws {Error} statusCode 409 — record exists but is not DRAFT
  * @throws {Error} statusCode 400 — record is DRAFT but description is blank
  */
-async function submitChange(id) {
+async function submitChange(id, user) {
+  if (!user || typeof user.id !== 'string') {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
+
   // ── Step 1: Read the current record so we can enforce pre-conditions ─────────
   // We must know the description before attempting the update — it's stored in
   // the DB and cannot be validated from the request body.
@@ -135,6 +152,13 @@ async function submitChange(id) {
   if (!current) {
     const err = new Error('Change request not found');
     err.statusCode = 404;
+    throw err;
+  }
+
+  // ── Ownership check for REQUESTER role ────────────────────────────────────
+  if (user.role === 'REQUESTER' && current.createdById !== user.id) {
+    const err = new Error('Forbidden: you can only submit your own change requests');
+    err.statusCode = 403;
     throw err;
   }
 
@@ -315,17 +339,32 @@ async function closeChange(id) {
  *
  * @param {string} id     - UUID v4
  * @param {Object} fields - sanitised subset of { title, description, riskLevel }
+ * @param {Object} [user] - authenticated user object { id, role }
  * @returns {Promise<Object>} the updated ChangeRequest record
  * @throws {Error} statusCode 404 — record not found
+ * @throws {Error} statusCode 403 — requester modifying someone else's request
  * @throws {Error} statusCode 409 — record is not DRAFT
  */
-async function updateChange(id, fields) {
+async function updateChange(id, fields, user) {
+  if (!user || typeof user.id !== 'string') {
+    const err = new Error('Authentication required');
+    err.statusCode = 401;
+    throw err;
+  }
+
   // ── Step 1: Read current record to enforce pre-conditions ──────────────────
   const current = await prisma.changeRequest.findUnique({ where: { id } });
 
   if (!current) {
     const err = new Error('Change request not found');
     err.statusCode = 404;
+    throw err;
+  }
+
+  // ── Ownership check for REQUESTER role ────────────────────────────────────
+  if (user.role === 'REQUESTER' && current.createdById !== user.id) {
+    const err = new Error('Forbidden: you can only edit your own change requests');
+    err.statusCode = 403;
     throw err;
   }
 

@@ -17,11 +17,13 @@ const changeService = require('../services/changeService');
 
 /**
  * POST /api/v1/changes
- * Creates a new ChangeRequest in DRAFT status.
+ * Creates a new ChangeRequest in DRAFT status associated with the authenticated user.
  * Responds 201 with the created record.
  */
 async function createChange(req, res) {
-  const record = await changeService.createChange(req.body);
+  const record = await changeService.createChange({
+    ...req.body
+  }, req.user?.id);
   res.status(201).json({ status: 'success', data: record });
 }
 
@@ -58,13 +60,16 @@ async function getChangeById(req, res) {
  * POST /api/v1/changes/:id/submit
  * Transitions a DRAFT ChangeRequest to UNDER_REVIEW.
  * Responds 200 on success.
- * Handles 400 (blank description), 404 (not found), 409 (wrong status).
+ * Handles 400 (blank description), 403 (unauthorized owner), 404 (not found), 409 (wrong status).
  */
 async function submitChange(req, res) {
   try {
-    const record = await changeService.submitChange(req.params.id);
+    const record = await changeService.submitChange(req.params.id, req.user);
     res.status(200).json({ data: record });
   } catch (err) {
+    if (err.statusCode === 403) {
+      return res.status(403).json({ status: 'fail', message: err.message });
+    }
     if (err.statusCode === 404) {
       return res.status(404).json({ status: 'fail', message: err.message });
     }
@@ -148,13 +153,16 @@ async function closeChange(req, res) {
  * PATCH /api/v1/changes/:id
  * Applies a partial update to a DRAFT ChangeRequest.
  * Responds 200 on success.
- * Handles 404 (not found), 409 (not DRAFT).
+ * Handles 403 (unauthorized owner), 404 (not found), 409 (not DRAFT).
  */
 async function updateChange(req, res) {
   try {
-    const record = await changeService.updateChange(req.params.id, req.body);
+    const record = await changeService.updateChange(req.params.id, req.body, req.user);
     res.status(200).json({ data: record });
   } catch (err) {
+    if (err.statusCode === 403) {
+      return res.status(403).json({ status: 'fail', message: err.message });
+    }
     if (err.statusCode === 404) {
       return res.status(404).json({ status: 'fail', message: err.message });
     }

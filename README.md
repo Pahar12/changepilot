@@ -74,7 +74,17 @@ The API will be available at `http://localhost:3000` by default.
 ## API endpoints available now
 
 - `GET /api/health` — Returns status to confirm the API is running.
+- `POST /api/v1/auth/register` — Public registration, always creates a REQUESTER account.
+- `POST /api/v1/auth/login` — Returns a JWT for valid credentials.
+- `GET /api/v1/auth/me` — Returns the authenticated user profile.
 - `/api/v1/changes` — ChangeRequest CRUD and lifecycle endpoints (`POST /`, `GET /`, `GET /:id`, `PATCH /:id`, `POST /:id/submit`, `POST /:id/approve`, `POST /:id/reject`, `POST /:id/close`).
+
+## Authorization model
+
+- REQUESTER: create, list, view, update DRAFT, submit own requests.
+- REVIEWER: list, view, approve, reject, close.
+- ADMIN: full ChangeRequest access.
+- Public registration cannot select a role; all registered users start as REQUESTER.
 
 ## Database & Prisma status
 
@@ -96,17 +106,17 @@ GitHub Actions runs:
 ## Current status
 
 ### Implemented:
+- Authentication endpoints with scrypt password hashing and HS256 JWTs
+- RBAC enforcement for REQUESTER, REVIEWER, and ADMIN roles
 - ChangeRequest CRUD and lifecycle APIs
 - PostgreSQL + Prisma persistence
 - ChangeRequest validation and state transitions
 - User model with role definitions
-- ChangeRequest ownership foundation
+- ChangeRequest ownership enforcement for requester-owned updates and submits
 - Automated integration tests
 - GitHub Actions CI
 
 ### In progress:
-- Authentication
-- RBAC enforcement
 - Evidence tracking
 
 ### Planned:

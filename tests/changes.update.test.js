@@ -22,6 +22,9 @@ require('dotenv').config();
 
 const app    = require('../app');
 const prisma = require('../src/lib/prisma');
+const { signToken } = require('../src/lib/jwt');
+const { hashPassword } = require('../src/lib/crypto');
+const env = require('../src/config/env');
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
@@ -37,7 +40,8 @@ function patch(server, path, payload) {
       method:   'PATCH',
       headers: {
         'Content-Type':   'application/json',
-        'Content-Length': Buffer.byteLength(data)
+        'Content-Length': Buffer.byteLength(data),
+        Authorization:    `Bearer ${requesterToken}`
       }
     };
 
@@ -62,9 +66,29 @@ function patch(server, path, payload) {
 // ── Server lifecycle ──────────────────────────────────────────────────────────
 
 let server;
+let requesterUser;
+let requesterToken;
 
 before(async () => {
+  await prisma.user.deleteMany({});
   await prisma.changeRequest.deleteMany({});
+
+  const passwordHash = await hashPassword('TestPassword123');
+
+  requesterUser = await prisma.user.create({
+    data: {
+      name: 'Requester One',
+      email: 'changes-update-requester@example.com',
+      passwordHash,
+      role: 'REQUESTER'
+    }
+  });
+
+  requesterToken = signToken(
+    { userId: requesterUser.id, email: requesterUser.email, role: requesterUser.role },
+    env.jwtSecret,
+    env.jwtExpiresIn
+  );
 
   server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -82,7 +106,12 @@ after(async () => {
 // ── Seed / cleanup helpers ────────────────────────────────────────────────────
 
 async function seed(fields) {
-  return prisma.changeRequest.create({ data: fields });
+  return prisma.changeRequest.create({
+    data: {
+      ...fields,
+      createdById: fields.createdById ?? requesterUser.id
+    }
+  });
 }
 
 async function cleanup(id) {
