@@ -11,6 +11,16 @@ datasource db {
 // Enums
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// User role definitions for authorization and ownership.
+/// REQUESTER → creates and owns change requests (default)
+/// REVIEWER  → reviews, approves, or rejects change requests
+/// ADMIN     → administrative system access
+enum UserRole {
+  REQUESTER
+  REVIEWER
+  ADMIN
+}
+
 /// Lifecycle states a ChangeRequest can move through.
 /// DRAFT        → created but not yet submitted
 /// UNDER_REVIEW → submitted and awaiting a decision
@@ -38,6 +48,35 @@ enum RiskLevel {
 // Models
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Represents a system user who can create, review, or administer change requests.
+model User {
+  /// UUID v4 primary key.
+  id                    String          @id @default(uuid())
+
+  /// Full name of the user.
+  name                  String
+
+  /// Unique email address used for identity and login.
+  email                 String          @unique
+
+  /// Cryptographic hash of the user's password. Plaintext passwords are never stored.
+  passwordHash          String
+
+  /// User's system role. Defaults to REQUESTER.
+  role                  UserRole        @default(REQUESTER)
+
+  /// Record creation timestamp.
+  createdAt             DateTime        @default(now())
+
+  /// Automatically updated on every UPDATE/UPSERT.
+  updatedAt             DateTime        @updatedAt
+
+  /// Change requests created by this user.
+  changeRequestsCreated ChangeRequest[]
+
+  @@map("users")
+}
+
 /// A ChangeRequest represents a proposed software or process change that must
 /// go through a review and approval lifecycle before it can be implemented.
 model ChangeRequest {
@@ -59,6 +98,12 @@ model ChangeRequest {
   /// actively acknowledge higher risk rather than having it pre-filled.
   riskLevel   RiskLevel            @default(LOW)
 
+  /// Foreign key referencing the creator User. Nullable for backward compatibility with existing records.
+  createdById String?
+
+  /// Relation to the user who created this change request.
+  createdBy   User?                @relation(fields: [createdById], references: [id])
+
   /// Set by the database on INSERT; immune to client clock skew.
   createdAt   DateTime             @default(now())
 
@@ -67,12 +112,14 @@ model ChangeRequest {
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   // Each index targets a first-class query pattern on the dashboard:
-  //   status    → "show all UNDER_REVIEW requests"
-  //   riskLevel → "show all CRITICAL requests"
-  //   createdAt → paginated list ordered by most-recent
+  //   status      → "show all UNDER_REVIEW requests"
+  //   riskLevel   → "show all CRITICAL requests"
+  //   createdAt   → paginated list ordered by most-recent
+  //   createdById → filter change requests by creator/owner
   @@index([status])
   @@index([riskLevel])
   @@index([createdAt])
+  @@index([createdById])
 
   // Map to snake_case table name — Prisma model names are PascalCase,
   // PostgreSQL table names are snake_case.
