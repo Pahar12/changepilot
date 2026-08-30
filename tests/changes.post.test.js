@@ -115,9 +115,11 @@ after(async () => {
   // Disconnect the shared Prisma client exactly once — this covers both the
   // service's pool and the cleanup calls in this file.
   await prisma.$disconnect();
-  await new Promise((resolve, reject) =>
-    server.close((err) => (err ? reject(err) : resolve()))
-  );
+  if (server) {
+    await new Promise((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve()))
+    );
+  }
 });
 
 // ── Cleanup helper ────────────────────────────────────────────────────────────

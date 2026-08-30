@@ -68,9 +68,11 @@ before(async () => {
 
 after(async () => {
   await prisma.$disconnect();
-  await new Promise((resolve, reject) =>
-    server.close((err) => (err ? reject(err) : resolve()))
-  );
+  if (server) {
+    await new Promise((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve()))
+    );
+  }
 });
 
 // ── Seed / cleanup ────────────────────────────────────────────────────────────
