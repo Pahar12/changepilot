@@ -96,4 +96,12 @@ function validateParam(paramName, validatorFn) {
   };
 }
 
-module.exports = { validateBody, validateQuery, validateParam };
+const { authenticate, authorize } = require('./auth');
+
+module.exports = {
+  validateBody,
+  validateQuery,
+  validateParam,
+  authenticate,
+  authorize
+};

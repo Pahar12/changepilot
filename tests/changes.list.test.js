@@ -22,6 +22,9 @@ require('dotenv').config();
 
 const app    = require('../app');
 const prisma = require('../src/lib/prisma');
+const { signToken } = require('../src/lib/jwt');
+const { hashPassword } = require('../src/lib/crypto');
+const env = require('../src/config/env');
 
 // ── HTTP helper ───────────────────────────────────────────────────────────────
 
@@ -36,7 +39,10 @@ function get(server, pathAndQuery) {
       hostname: '127.0.0.1',
       port:     addr.port,
       path:     pathAndQuery,
-      method:   'GET'
+      method:   'GET',
+      headers:  {
+        Authorization: `Bearer ${requesterToken}`
+      }
     };
 
     http.get(options, (res) => {
@@ -56,11 +62,31 @@ function get(server, pathAndQuery) {
 // ── Server lifecycle ──────────────────────────────────────────────────────────
 
 let server;
+let requesterUser;
+let requesterToken;
 
 before(async () => {
   // Delete any rows left from previous incomplete runs before starting.
   // This only runs once at suite start, not between every test.
+  await prisma.user.deleteMany({});
   await prisma.changeRequest.deleteMany({});
+
+  const passwordHash = await hashPassword('TestPassword123');
+
+  requesterUser = await prisma.user.create({
+    data: {
+      name: 'Requester One',
+      email: 'changes-list-requester@example.com',
+      passwordHash,
+      role: 'REQUESTER'
+    }
+  });
+
+  requesterToken = signToken(
+    { userId: requesterUser.id, email: requesterUser.email, role: requesterUser.role },
+    env.jwtSecret,
+    env.jwtExpiresIn
+  );
 
   server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -85,7 +111,12 @@ let seededIds = [];
  * can seed specific status values like APPROVED that the POST endpoint forbids).
  */
 async function seed(fields) {
-  const record = await prisma.changeRequest.create({ data: fields });
+  const record = await prisma.changeRequest.create({
+    data: {
+      ...fields,
+      createdById: fields.createdById ?? requesterUser.id
+    }
+  });
   seededIds.push(record.id);
   return record;
 }

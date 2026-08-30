@@ -16,6 +16,9 @@ require('dotenv').config();
 
 const app    = require('../app');
 const prisma = require('../src/lib/prisma');
+const { signToken } = require('../src/lib/jwt');
+const { hashPassword } = require('../src/lib/crypto');
+const env = require('../src/config/env');
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
@@ -30,7 +33,8 @@ function post(server, path, payload) {
       method:   'POST',
       headers: {
         'Content-Type':   'application/json',
-        'Content-Length': Buffer.byteLength(data)
+        'Content-Length': Buffer.byteLength(data),
+        Authorization:    `Bearer ${reviewerToken}`
       }
     };
 
@@ -55,9 +59,39 @@ function post(server, path, payload) {
 // ── Server lifecycle ──────────────────────────────────────────────────────────
 
 let server;
+let requesterUser;
+let reviewerUser;
+let reviewerToken;
 
 before(async () => {
+  await prisma.user.deleteMany({});
   await prisma.changeRequest.deleteMany({});
+
+  const passwordHash = await hashPassword('TestPassword123');
+
+  requesterUser = await prisma.user.create({
+    data: {
+      name: 'Requester One',
+      email: 'changes-reject-requester@example.com',
+      passwordHash,
+      role: 'REQUESTER'
+    }
+  });
+
+  reviewerUser = await prisma.user.create({
+    data: {
+      name: 'Reviewer One',
+      email: 'changes-reject-reviewer@example.com',
+      passwordHash,
+      role: 'REVIEWER'
+    }
+  });
+
+  reviewerToken = signToken(
+    { userId: reviewerUser.id, email: reviewerUser.email, role: reviewerUser.role },
+    env.jwtSecret,
+    env.jwtExpiresIn
+  );
 
   server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -75,7 +109,12 @@ after(async () => {
 // ── Seed / cleanup helpers ────────────────────────────────────────────────────
 
 async function seed(fields) {
-  return prisma.changeRequest.create({ data: fields });
+  return prisma.changeRequest.create({
+    data: {
+      ...fields,
+      createdById: fields.createdById ?? requesterUser.id
+    }
+  });
 }
 
 async function cleanup(id) {
