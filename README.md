@@ -71,34 +71,45 @@ npm start
 
 The API will be available at `http://localhost:3000` by default.
 
-## API endpoint available now
+## API endpoints available now
 
-- `GET /api/health`
-  - Returns a simple JSON response to confirm the API is running.
+- `GET /api/health` — Returns status to confirm the API is running.
+- `/api/v1/changes` — ChangeRequest CRUD and lifecycle endpoints (`POST /`, `GET /`, `GET /:id`, `PATCH /:id`, `POST /:id/submit`, `POST /:id/approve`, `POST /:id/reject`, `POST /:id/close`).
 
-## Prisma setup status
+## Database & Prisma status
 
-Prisma is initialized for PostgreSQL with a basic `schema.prisma` configuration.
-
-No application-specific models or migrations have been created yet.
+PostgreSQL database managed with Prisma ORM:
+- `ChangeRequest` model with lifecycle state machine and risk levels.
+- `User` model with role definitions (`REQUESTER`, `REVIEWER`, `ADMIN`).
+- ChangeRequest ownership foundation linking requests to users via nullable `createdById`.
 
 ## CI workflow
 
 GitHub Actions runs:
 
 - dependency installation (`npm ci`)
+- Prisma Client generation (`npx prisma generate`)
+- Prisma migration deployment (`npx prisma migrate deploy`)
+- integration tests (`npm test`) against an isolated PostgreSQL service container
 - linting (`npm run lint`)
-- tests (`npm test`)
-
-No fake tests are included.
 
 ## Current status
 
-✅ Foundation only. The following are **planned** and not implemented yet:
+### Implemented:
+- ChangeRequest CRUD and lifecycle APIs
+- PostgreSQL + Prisma persistence
+- ChangeRequest validation and state transitions
+- User model with role definitions
+- ChangeRequest ownership foundation
+- Automated integration tests
+- GitHub Actions CI
 
+### In progress:
 - Authentication
-- Change requests and CRUD workflows
+- RBAC enforcement
 - Evidence tracking
+
+### Planned:
 - GitHub integration
 - AI and IBM Bob integration
 - Docker and deployment setup

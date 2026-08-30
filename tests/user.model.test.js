@@ -101,7 +101,7 @@ describe('User Model & Ownership Database Foundation', () => {
         },
         (err) => {
           // Prisma unique constraint violation code is P2002
-          assert.ok(err, 'Expected error when inserting duplicate email');
+          assert.equal(err.code, 'P2002');
           return true;
         }
       );
