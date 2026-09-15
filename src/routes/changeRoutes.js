@@ -9,6 +9,8 @@
 
 const express = require('express');
 const controller = require('../controllers/changeController');
+const aiController = require('../controllers/aiController');
+const evidenceController = require('../controllers/evidenceController');
 const { validateBody, validateQuery, validateParam, authenticate, authorize } = require('../middleware');
 const {
   validateCreateChange,
@@ -18,8 +20,10 @@ const {
   validateApproveChange,
   validateRejectChange,
   validateCloseChange,
-  validateUpdateChange
+  validateUpdateChange,
+  validateAnalyzeChange
 } = require('../validators/changeValidator');
+const { validateCreateEvidence } = require('../validators/evidenceValidator');
 
 const router = express.Router();
 
@@ -36,6 +40,42 @@ router.post(
   validateParam('id', validateChangeId),
   validateBody(validateSubmitChange),
   controller.submitChange
+);
+
+// POST /api/v1/changes/:id/analyze — declared before /:id to prevent shadowing
+// All three roles may call this; ownership for REQUESTER is enforced in
+// aiAnalysisService (mirrors the ownership check in changeService), same
+// pattern as the RBAC/ownership split used throughout this router.
+router.post(
+  '/:id/analyze',
+  authorize(['REQUESTER', 'REVIEWER', 'ADMIN']),
+  validateParam('id', validateChangeId),
+  validateBody(validateAnalyzeChange),
+  aiController.analyzeChange
+);
+
+// POST /api/v1/changes/:id/evidence — declared before /:id to prevent shadowing
+// Same role split as POST /api/v1/changes (creation): REQUESTER and ADMIN
+// only. Ownership for REQUESTER (must own the parent ChangeRequest) is
+// enforced in evidenceService, mirroring every other ownership check in
+// this router.
+router.post(
+  '/:id/evidence',
+  authorize(['REQUESTER', 'ADMIN']),
+  validateParam('id', validateChangeId),
+  validateBody(validateCreateEvidence),
+  evidenceController.createEvidence
+);
+
+// GET /api/v1/changes/:id/evidence — declared before /:id to prevent shadowing
+// Same role set as GET /api/v1/changes (list/read): all three roles: REVIEWER
+// and ADMIN see any ChangeRequest's evidence; REQUESTER is restricted to
+// their own ChangeRequest's evidence in evidenceService.
+router.get(
+  '/:id/evidence',
+  authorize(['REQUESTER', 'REVIEWER', 'ADMIN']),
+  validateParam('id', validateChangeId),
+  evidenceController.listEvidenceForChange
 );
 
 // POST /api/v1/changes/:id/approve

@@ -15,9 +15,11 @@ module.exports = [
         __dirname:    'readonly',
         __filename:   'readonly',
         setTimeout:   'readonly',
-        clearTimeout: 'readonly'
+        clearTimeout: 'readonly',
+        fetch:        'readonly'
         // module / require / exports are provided by sourceType:'commonjs'
         // setInterval / clearInterval / URL are not used in this project
+        // fetch: Node 18+ built-in, used by src/ai/providers/openaiProvider.js
       }
     },
     rules: {

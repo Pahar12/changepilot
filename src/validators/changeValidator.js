@@ -307,6 +307,34 @@ function validateCloseChange(body) {
 }
 
 /**
+ * Validate the body of POST /api/v1/changes/:id/analyze.
+ *
+ * No-body action — any client-supplied field is rejected. The AI analysis
+ * input is derived entirely server-side from the stored ChangeRequest and
+ * its evidence; a client cannot influence what gets sent to the AI provider
+ * through this endpoint.
+ *
+ * @param {Object} body - raw req.body
+ * @returns {{ errors: Array<{field:string, message:string}>, data: Object|null }}
+ */
+function validateAnalyzeChange(body) {
+  const raw = body || {};
+  const keys = Object.keys(raw);
+
+  if (keys.length > 0) {
+    return {
+      errors: keys.map((key) => ({
+        field: key,
+        message: `Field "${key}" is not accepted on the analyze action`
+      })),
+      data: null
+    };
+  }
+
+  return { errors: [], data: {} };
+}
+
+/**
  * Validate the body of PATCH /api/v1/changes/:id.
  *
  * Only title, description and riskLevel may be updated.
@@ -406,5 +434,6 @@ module.exports = {
   validateApproveChange,
   validateRejectChange,
   validateCloseChange,
-  validateUpdateChange
+  validateUpdateChange,
+  validateAnalyzeChange
 };

@@ -29,26 +29,33 @@ async function createChange(req, res) {
 
 /**
  * GET /api/v1/changes
- * Returns a paginated, filtered list of ChangeRequests.
+ * Returns a paginated, filtered list of ChangeRequests. A REQUESTER only
+ * ever sees their own records (see changeService.listChanges); REVIEWER and
+ * ADMIN are unrestricted.
  * Query params are pre-validated and parsed by validateQuery middleware.
  */
 async function listChanges(req, res) {
   // Read from req.parsedQuery — set by validateQuery middleware with typed values.
   const { filter, page, limit } = req.parsedQuery;
-  const result = await changeService.listChanges({ filter, page, limit });
-  res.status(200).json(result);
+  const result = await changeService.listChanges({ filter, page, limit }, req.user);
+  res.status(200).json({ status: 'success', ...result });
 }
 
 /**
  * GET /api/v1/changes/:id
- * Returns a single ChangeRequest by ID.
- * Responds 200 on success, 404 when the record does not exist.
+ * Returns a single ChangeRequest by ID. A REQUESTER may only fetch their own
+ * record (see changeService.getChangeById); REVIEWER and ADMIN are unrestricted.
+ * Responds 200 on success, 403 when a REQUESTER requests someone else's
+ * record, 404 when the record does not exist.
  */
 async function getChangeById(req, res) {
   try {
-    const record = await changeService.getChangeById(req.params.id);
-    res.status(200).json({ data: record });
+    const record = await changeService.getChangeById(req.params.id, req.user);
+    res.status(200).json({ status: 'success', data: record });
   } catch (err) {
+    if (err.statusCode === 403) {
+      return res.status(403).json({ status: 'fail', message: err.message });
+    }
     if (err.statusCode === 404) {
       return res.status(404).json({ status: 'fail', message: err.message });
     }
@@ -65,7 +72,7 @@ async function getChangeById(req, res) {
 async function submitChange(req, res) {
   try {
     const record = await changeService.submitChange(req.params.id, req.user);
-    res.status(200).json({ data: record });
+    res.status(200).json({ status: 'success', data: record });
   } catch (err) {
     if (err.statusCode === 403) {
       return res.status(403).json({ status: 'fail', message: err.message });
@@ -94,8 +101,8 @@ async function submitChange(req, res) {
  */
 async function approveChange(req, res) {
   try {
-    const record = await changeService.approveChange(req.params.id);
-    res.status(200).json({ data: record });
+    const record = await changeService.approveChange(req.params.id, req.user);
+    res.status(200).json({ status: 'success', data: record });
   } catch (err) {
     if (err.statusCode === 404) {
       return res.status(404).json({ status: 'fail', message: err.message });
@@ -115,8 +122,8 @@ async function approveChange(req, res) {
  */
 async function rejectChange(req, res) {
   try {
-    const record = await changeService.rejectChange(req.params.id);
-    res.status(200).json({ data: record });
+    const record = await changeService.rejectChange(req.params.id, req.user);
+    res.status(200).json({ status: 'success', data: record });
   } catch (err) {
     if (err.statusCode === 404) {
       return res.status(404).json({ status: 'fail', message: err.message });
@@ -136,8 +143,8 @@ async function rejectChange(req, res) {
  */
 async function closeChange(req, res) {
   try {
-    const record = await changeService.closeChange(req.params.id);
-    res.status(200).json({ data: record });
+    const record = await changeService.closeChange(req.params.id, req.user);
+    res.status(200).json({ status: 'success', data: record });
   } catch (err) {
     if (err.statusCode === 404) {
       return res.status(404).json({ status: 'fail', message: err.message });
@@ -158,7 +165,7 @@ async function closeChange(req, res) {
 async function updateChange(req, res) {
   try {
     const record = await changeService.updateChange(req.params.id, req.body, req.user);
-    res.status(200).json({ data: record });
+    res.status(200).json({ status: 'success', data: record });
   } catch (err) {
     if (err.statusCode === 403) {
       return res.status(403).json({ status: 'fail', message: err.message });

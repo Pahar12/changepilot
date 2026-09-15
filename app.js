@@ -35,28 +35,51 @@ app.use((req, res) => {
 // Must be registered last (after all routes and the 404 fallback) so Express
 // routes errors here via next(err) or from async route throws (Express 5).
 //
-// Two recognised error shapes:
+// Recognised error shapes:
 //
 //   JSON parse error (body-parser):
 //     err.type === 'entity.parse.failed'
 //     → 400  { status: 'fail',  message: 'Invalid JSON' }
+//     Expected/operational: caused by a malformed client request, not a
+//     server bug. Logged as a single controlled line (method + path) —
+//     never the raw SyntaxError object. Logging the raw error here would
+//     print body-parser's internal stack trace (and its node_modules file
+//     paths) to the server console for something that is just bad client
+//     input, not something requiring investigation.
+//
+//   Disallowed CORS origin (see cors() config above):
+//     err.message === 'Not allowed by CORS'
+//     → 403  { status: 'fail',  message: 'Not allowed by CORS' }
+//     Also expected/operational — logged as a single controlled line.
 //
 //   Everything else (Prisma, programming bugs, etc.):
 //     → 500  { status: 'error', message: 'Internal server error' }
+//     Unexpected: logged in full, including the stack trace, so it stays
+//     debuggable server-side.
 //
-// The response is ALWAYS JSON and NEVER contains stack traces, file paths,
-// database error codes, or any other internal detail.
+// The HTTP response is ALWAYS JSON and NEVER contains stack traces, file
+// paths, database error codes, or any other internal detail, for either
+// error shape.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  // Always log server-side so the error is observable in server logs.
-  console.error('[error]', err);
-
-  // ── JSON parse failure ────────────────────────────────────────────────────
+  // ── JSON parse failure — expected client error ──────────────────────────
   if (err.type === 'entity.parse.failed') {
+    console.warn(`[warn] malformed JSON body: ${req.method} ${req.originalUrl}`);
     return res.status(400).json({ status: 'fail', message: 'Invalid JSON' });
   }
 
-  // ── All other errors: return a safe generic 500 ───────────────────────────
+  // ── Disallowed CORS origin — expected client condition, not a bug ──────
+  // The cors() middleware above calls its origin callback with an Error for
+  // any origin not in env.corsOrigins, which otherwise surfaces here as an
+  // "unexpected" 500 with a full stack trace for something that is really
+  // just a routine, expected rejection.
+  if (err.message === 'Not allowed by CORS') {
+    console.warn(`[warn] blocked request from disallowed origin: ${req.headers.origin || 'unknown'}`);
+    return res.status(403).json({ status: 'fail', message: 'Not allowed by CORS' });
+  }
+
+  // ── Everything else: unexpected — log in full, respond generically ─────
+  console.error('[error]', err);
   return res.status(500).json({ status: 'error', message: 'Internal server error' });
 });
 

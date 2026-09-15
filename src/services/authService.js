@@ -15,6 +15,13 @@ const env = require('../config/env');
 const { hashPassword, verifyPassword } = require('../lib/crypto');
 const { signToken } = require('../lib/jwt');
 
+// A fixed, correctly-shaped (but never valid) password hash used to keep
+// login()'s timing consistent whether or not the email exists — see login()
+// below. Never a real secret: verifyPassword() derives a fresh key from the
+// *supplied* password and this fixed salt, then compares against this fixed
+// key, which was not derived from any password at all, so it can never match.
+const DUMMY_PASSWORD_HASH = `${'a'.repeat(32)}:${'b'.repeat(128)}`;
+
 /**
  * Register a new user.
  *
@@ -70,6 +77,14 @@ async function register({ name, email, password }) {
 /**
  * Authenticate a user with email and password.
  *
+ * Timing note: verifyPassword() (and its underlying scrypt cost) always
+ * runs, even when the email doesn't exist — comparing against
+ * DUMMY_PASSWORD_HASH in that case — so a nonexistent-email request and a
+ * wrong-password request take comparable time. Without this, a nonexistent
+ * email would return immediately (skipping the deliberately-expensive
+ * scrypt derivation), letting an attacker distinguish "no such account"
+ * from "wrong password" purely by response latency.
+ *
  * @param {Object} credentials
  * @param {string} credentials.email
  * @param {string} credentials.password
@@ -78,14 +93,9 @@ async function register({ name, email, password }) {
 async function login({ email, password }) {
   const user = await prisma.user.findUnique({ where: { email } });
 
-  if (!user) {
-    const err = new Error('Invalid email or password');
-    err.statusCode = 401;
-    throw err;
-  }
+  const isValid = await verifyPassword(password, user ? user.passwordHash : DUMMY_PASSWORD_HASH);
 
-  const isValid = await verifyPassword(password, user.passwordHash);
-  if (!isValid) {
+  if (!user || !isValid) {
     const err = new Error('Invalid email or password');
     err.statusCode = 401;
     throw err;

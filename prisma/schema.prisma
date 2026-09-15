@@ -44,6 +44,17 @@ enum RiskLevel {
   CRITICAL
 }
 
+/// The AI's suggested next step for a ChangeRequest. This is an assessment
+/// only — the AI never approves or rejects a ChangeRequest itself; existing
+/// backend business logic (changeService.js) remains the sole authority
+/// over ChangeRequest.status.
+enum AIRecommendation {
+  APPROVE
+  CONDITIONAL_APPROVAL
+  REQUEST_MORE_EVIDENCE
+  REJECT
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,6 +118,7 @@ model ChangeRequest {
   createdBy   User?        @relation(fields: [createdById], references: [id])
   evidence    Evidence[]
   auditEvents AuditEvent[]
+  aiAnalyses  AIAnalysis[]
   /// Set by the database on INSERT; immune to client clock skew.
   createdAt   DateTime     @default(now())
 
@@ -216,4 +228,59 @@ model AuditEvent {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Analysis (Phase 1 — AI foundation)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A single AI-generated risk assessment for a ChangeRequest.
+///
+/// Structured, JSON-field-backed by design for this first version rather
+/// than fully normalized — see docs/architecture.md for the rationale.
+/// The AI provides an assessment only; it never mutates ChangeRequest.status.
+model AIAnalysis {
+  /// UUID v4 primary key.
+  id String @id @default(uuid())
+
+  /// ChangeRequest this analysis was run against.
+  changeRequestId String
+
+  /// Parent ChangeRequest.
+  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+
+  /// Integer risk score in [0, 100], validated before persistence.
+  riskScore Int
+
+  /// Risk level bucket, validated against the RiskLevel enum before persistence.
+  riskLevel RiskLevel
+
+  /// Model's self-reported confidence in [0, 1], validated before persistence.
+  confidence Float
+
+  /// Concise human-readable summary of the assessment.
+  summary String
+
+  /// Array of affected area/system names (JSON — see validation layer in src/ai/schema.js).
+  affectedAreas Json
+
+  /// Array of structured { description, severity } findings.
+  riskFactors Json
+
+  /// Array of evidence descriptions the AI flagged as missing.
+  missingEvidence Json
+
+  /// The AI's suggested next step. Advisory only — never applied automatically.
+  recommendation AIRecommendation
+
+  /// Identifies which provider/model produced this analysis, e.g. "openai:gpt-4o-mini"
+  /// or "fake:deterministic-v1". Never a secret — no API keys are ever stored here.
+  providerModel String
+
+  /// Record creation timestamp.
+  createdAt DateTime @default(now())
+
+  @@index([changeRequestId])
+  @@index([createdAt])
+  @@map("ai_analyses")
 }
